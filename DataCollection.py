@@ -5,7 +5,11 @@ import os
 import sqlite3
 
 def setup_database():
-    """Create the database and required table"""
+    """Create a new database and required table"""
+    # Delete existing database if it exists
+    if os.path.exists('system_metrics.db'):
+        os.remove('system_metrics.db')
+    
     conn = sqlite3.connect('system_metrics.db')
     c = conn.cursor()
     
