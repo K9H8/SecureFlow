@@ -15,7 +15,7 @@ def setup_database():
     
     c.execute('''
         CREATE TABLE IF NOT EXISTS system_metrics (
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            timestamp DATETIME,
             cpu_percent REAL,
             ram_percent REAL,
             ram_used REAL,
@@ -33,12 +33,18 @@ def setup_database():
 def store_metrics(conn, metrics):
     """Store the metrics in the database"""
     c = conn.cursor()
+    
+    # Use the system's current time as the timestamp
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
     c.execute('''
         INSERT INTO system_metrics (
+            timestamp,
             cpu_percent, ram_percent, ram_used, ram_total,
             upload_speed, download_speed, disk_read_speed, disk_write_speed
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
+        current_time,
         metrics['cpu_percent'],
         metrics['ram_percent'],
         metrics['ram_used'],
@@ -49,15 +55,6 @@ def store_metrics(conn, metrics):
         metrics['disk_write_speed']
     ))
     conn.commit()
-
-def get_size(bytes):
-    """
-    Convert bytes to human readable format
-    """
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-        if bytes < 1024:
-            return f"{bytes:.2f}{unit}"
-        bytes /= 1024
 
 def monitor_system():
     # Setup database connection
@@ -74,8 +71,9 @@ def monitor_system():
     bytes_write = disk_io.write_bytes
     
     while True:
-        os.system('cls' if os.name == 'nt' else 'clear')
+        time.sleep(1)  # Adjust the sleep time as needed
         
+        # Get updated metrics
         cpu_percent = psutil.cpu_percent()
         memory = psutil.virtual_memory()
         
@@ -111,27 +109,6 @@ def monitor_system():
             'disk_write_speed': disk_write_speed
         }
         store_metrics(conn, metrics)
-        
-        current_time = datetime.now().strftime("%H:%M:%S")
-        
-        # Print statistics
-        print(f"System Monitor - {current_time}")
-        print("-" * 40)
-        print(f"CPU Usage: {cpu_percent}%")
-        print(f"RAM Usage: {memory.percent}%")
-        print(f"RAM Used: {get_size(memory.used)} / {get_size(memory.total)}")
-        print(f"\nNetwork:")
-        print(f"Upload Speed: {get_size(upload_speed)}/s")
-        print(f"Download Speed: {get_size(download_speed)}/s")
-        print(f"\nDisk Activity:")
-        print(f"Read Speed: {get_size(disk_read_speed)}/s")
-        print(f"Write Speed: {get_size(disk_write_speed)}/s")
-        print("\nMetrics are being stored in 'system_metrics.db'")
-        
-        time.sleep(1)
 
 if __name__ == "__main__":
-    try:
-        monitor_system()
-    except KeyboardInterrupt:
-        print("\nMonitoring stopped.")
+    monitor_system()
