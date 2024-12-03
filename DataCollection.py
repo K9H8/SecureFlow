@@ -1,10 +1,10 @@
 import psutil
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import sqlite3
 
-def setup_database():
+def setup_metrics_database():
     """Create a new database and required table"""
     # Delete existing database if it exists
     if os.path.exists('system_metrics.db'):
@@ -56,9 +56,66 @@ def store_metrics(conn, metrics):
     ))
     conn.commit()
 
+def setup_average_table(conn):
+    """Create a new table for storing minute averages"""
+    c = conn.cursor()
+    
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS minute_averages (
+            timestamp DATETIME,
+            avg_cpu_percent REAL,
+            avg_ram_percent REAL,
+            avg_ram_used REAL,
+            avg_ram_total REAL,
+            avg_upload_speed REAL,
+            avg_download_speed REAL,
+            avg_disk_read_speed REAL,
+            avg_disk_write_speed REAL
+        )
+    ''')
+    
+    conn.commit()
+
+def store_minute_averages(conn):
+    """Calculate and store the average metrics from the last minute"""
+    c = conn.cursor()
+    
+    # Get the current time and the time one minute ago
+    current_time = datetime.now()
+    one_minute_ago = current_time - timedelta(minutes=1)
+    
+    # Query to calculate averages
+    c.execute('''
+        SELECT 
+            AVG(cpu_percent) AS avg_cpu_percent,
+            AVG(ram_percent) AS avg_ram_percent,
+            AVG(ram_used) AS avg_ram_used,
+            AVG(ram_total) AS avg_ram_total,
+            AVG(upload_speed) AS avg_upload_speed,
+            AVG(download_speed) AS avg_download_speed,
+            AVG(disk_read_speed) AS avg_disk_read_speed,
+            AVG(disk_write_speed) AS avg_disk_write_speed
+        FROM system_metrics
+        WHERE timestamp >= ?
+    ''', (one_minute_ago.strftime("%Y-%m-%d %H:%M:%S"),))
+    
+    averages = c.fetchone()
+    
+    # Store the averages in the minute_averages table
+    c.execute('''
+        INSERT INTO minute_averages (
+            timestamp,
+            avg_cpu_percent, avg_ram_percent, avg_ram_used, avg_ram_total,
+            avg_upload_speed, avg_download_speed, avg_disk_read_speed, avg_disk_write_speed
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (current_time.strftime("%Y-%m-%d %H:%M:%S"),) + averages)
+    
+    conn.commit()
+
 def monitor_system():
     # Setup database connection
-    conn = setup_database()
+    conn = setup_metrics_database()
+    setup_average_table(conn)  # Create the average table
     
     # Get initial counters
     net_io = psutil.net_io_counters()
@@ -109,6 +166,17 @@ def monitor_system():
             'disk_write_speed': disk_write_speed
         }
         store_metrics(conn, metrics)
+        
+        # Store minute averages every minute
+        if int(time.time()) % 60 == 0:  # Check if the current time is a multiple of 60 seconds
+            store_minute_averages(conn)
+
+def monitor_system_averages():
+    conn = setup_metrics_database()
+    setup_average_table(conn)
+    conn.close()
 
 if __name__ == "__main__":
     monitor_system()
+    monitor_system_averages()
+    
