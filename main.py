@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 import threading
-from DataCollection import monitor_system
+from DataCollection import monitor_system 
 import time
 
 class WelcomeWindow:
@@ -50,10 +50,21 @@ class WelcomeWindow:
         # Time remaining label
         self.time_label = ttk.Label(
             main_frame,
-            text="Time Remaining: 30:00",
+            text=f"Time Remaining: {tk.IntVar}:00", # !timechange
             font=('Helvetica', 10)
         )
         self.time_label.grid(row=3, column=0, pady=5)
+        
+        # Time selection dropdown
+        self.time_options = [5, 10, 15, 20]  # Options in minutes
+        self.time_var = tk.IntVar(value=self.time_options[0])  # Default to first option
+        self.time_dropdown = ttk.Combobox(
+            main_frame, 
+            textvariable=self.time_var, 
+            values=self.time_options,
+            state='readonly'
+        )
+        self.time_dropdown.grid(row=4, column=0, pady=10)
         
         # Center all elements
         main_frame.grid_columnconfigure(0, weight=1)
@@ -66,12 +77,14 @@ class WelcomeWindow:
         self.start_button.config(state='disabled', text="Data Collection Running")
         thread = threading.Thread(target=monitor_system, daemon=True)
         thread.start()
+        
         self.start_countdown()
         
     def start_countdown(self):
-        """Start the 30-minute countdown"""
-        total_seconds = 30 * 60  # 30 minutes in seconds
-        self.progress['maximum'] = total_seconds
+        """Start the countdown based on user selection"""
+        total_minutes = self.time_var.get()  # Get selected time in minutes
+        total_seconds = total_minutes * 60  # Convert to seconds
+        self.progress['maximum'] = total_seconds  #Sets the progress bar maximum to 3 minutes
         
         def update_countdown():
             for remaining in range(total_seconds, -1, -1):
