@@ -1,3 +1,5 @@
 # For system monitoring
 psutil
+# For data analysis
+pandas
 
