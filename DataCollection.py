@@ -127,7 +127,11 @@ def monitor_system():
     bytes_read = disk_io.read_bytes
     bytes_write = disk_io.write_bytes
     
+    # data collection start time for consle print 
+    start_time = time.time()
+
     while True:
+        print(f"Time passed: {int(time.time() - start_time)} seconds")
         time.sleep(1)  # Adjust the sleep time as needed
         
         # Get updated metrics
