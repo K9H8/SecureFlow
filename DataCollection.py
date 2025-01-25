@@ -27,6 +27,22 @@ def setup_metrics_database():
         )
     ''')
     
+    """Create a new table for storing minute averages"""
+    
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS minute_averages (
+            timestamp DATETIME,
+            avg_cpu_percent REAL,
+            avg_ram_percent REAL,
+            avg_ram_used REAL,
+            avg_ram_total REAL,
+            avg_upload_speed REAL,
+            avg_download_speed REAL,
+            avg_disk_read_speed REAL,
+            avg_disk_write_speed REAL
+        )
+    ''')
+    
     conn.commit()
     return conn
 
@@ -54,26 +70,6 @@ def store_metrics(conn, metrics):
         metrics['disk_read_speed'],
         metrics['disk_write_speed']
     ))
-    conn.commit()
-
-def setup_average_table(conn):
-    """Create a new table for storing minute averages"""
-    c = conn.cursor()
-    
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS minute_averages (
-            timestamp DATETIME,
-            avg_cpu_percent REAL,
-            avg_ram_percent REAL,
-            avg_ram_used REAL,
-            avg_ram_total REAL,
-            avg_upload_speed REAL,
-            avg_download_speed REAL,
-            avg_disk_read_speed REAL,
-            avg_disk_write_speed REAL
-        )
-    ''')
-    
     conn.commit()
 
 def store_minute_averages(conn):
@@ -112,32 +108,21 @@ def store_minute_averages(conn):
     
     conn.commit()
 
-def monitor_system():
-    # Setup database connection
-    conn = setup_metrics_database()
-    setup_average_table(conn)  # Create the average table
-    
-    # Get initial counters
-    net_io = psutil.net_io_counters()
-    bytes_sent = net_io.bytes_sent
-    bytes_recv = net_io.bytes_recv
-    
-    # Get initial disk I/O counters
-    disk_io = psutil.disk_io_counters()
-    bytes_read = disk_io.read_bytes
-    bytes_write = disk_io.write_bytes
-    
-    # data collection start time for consle print 
-    start_time = time.time()
-
-    while True:
-        print(f"Time passed: {int(time.time() - start_time)} seconds")
-        time.sleep(1)  # Adjust the sleep time as needed
-        
-        # Get updated metrics
+def get_stats():
+            # Get updated metrics
         cpu_percent = psutil.cpu_percent()
         memory = psutil.virtual_memory()
         
+            # Get initial counters
+        net_io = psutil.net_io_counters()
+        bytes_sent = net_io.bytes_sent
+        bytes_recv = net_io.bytes_recv
+    
+        # Get initial disk I/O counters
+        disk_io = psutil.disk_io_counters()
+        bytes_read = disk_io.read_bytes
+        bytes_write = disk_io.write_bytes
+    
         # Get updated network stats
         new_net_io = psutil.net_io_counters()
         new_bytes_sent = new_net_io.bytes_sent
@@ -169,18 +154,37 @@ def monitor_system():
             'disk_read_speed': disk_read_speed,
             'disk_write_speed': disk_write_speed
         }
+        
+        return metrics
+
+def monitor_system(usr_time):
+    
+    setup_metrics_database()
+
+    # Setup database connection
+    conn = sqlite3.connect('system_metrics.db')
+    
+    # data collection start time for consle print 
+    start_time = time.time()
+    
+    seconds_passed = 0
+    
+    while usr_time > seconds_passed:
+        
+        print (usr_time) 
+        seconds_passed = int(time.time() - start_time)
+        print(f"Time passed: {seconds_passed} seconds")
+        metrics = get_stats() 
+        time.sleep(1)  # Adjust the sleep time as needed
         store_metrics(conn, metrics)
         
         # Store minute averages every minute
         if int(time.time()) % 60 == 0:  # Check if the current time is a multiple of 60 seconds
             store_minute_averages(conn)
 
-def monitor_system_averages():
-    conn = setup_metrics_database()
-    setup_average_table(conn)
-    conn.close()
 
 if __name__ == "__main__":
+
     monitor_system()
-    monitor_system_averages()
+    
     
